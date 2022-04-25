@@ -4,6 +4,7 @@
 #include "pbx.h"
 #include "server.h"
 #include "debug.h"
+#include "structures.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -14,6 +15,8 @@
 #include <assert.h>
 
 static void terminate(int status);
+
+
 
 /*
  * "PBX" telephone exchange simulation.
@@ -26,6 +29,11 @@ int main(int argc, char *argv[])
     // Option '-p <port>' is required in order to specify the port number
     // on which the server should listen.
     int port;
+    if (argc < 2)
+    {
+        error("Usage: pbx <port>.");
+        exit(1);
+    }
     for (int i = 0; i < argc; i++)
     {
         if (strcmp(argv[i], "-p") == 0)
@@ -36,13 +44,13 @@ int main(int argc, char *argv[])
             }
             else
             {
-                fprintf(stderr, "Option -p requires an argument.\n");
-                exit(1);
+                error("Option -p requires an argument.");
+                exit(EXIT_FAILURE);
             }
         }
     }
-    printf("PBX starting on port %d\n", port);
-
+    success("PBX starting on port %d.", port);
+    
     // install SIGHUB handler
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -50,11 +58,19 @@ int main(int argc, char *argv[])
     struct sigaction old_sa;
     sigaction(SIGINT, &sa, &old_sa);
     sigaction(SIGHUP, &sa, &old_sa);
-    printf("SIGHUP handler installed\n");
+    success("SIGHUP handler installed.");
+
 
     // Perform required initialization of the PBX module.
     debug("Initializing PBX...");
+
+    // Define PBX structure
     pbx = pbx_init();
+    if (pbx == NULL)
+    {
+        error("pbx_init failed to allocate memory for _pbx.");
+        terminate(EXIT_FAILURE);
+    }
 
     // TODO: Set up the server socket and enter a loop to accept connections
     // on this socket.  For each connection, a thread should be started to
@@ -63,55 +79,59 @@ int main(int argc, char *argv[])
     // shutdown of the server.
 
     // Setup server socket
-    struct sockaddr_in server_addr, client_addr;
-    int server_fd, client_fd;
-    socklen_t client_len;
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0)
+    pbx->serverfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (pbx->serverfd < 0)
     {
-        perror("socket");
-        terminate(1);
+        debug("pbx_init() failed to create server socket.");
+        terminate(EXIT_FAILURE);
     }
     else
     {
-        fprintf(stderr, "socket() successful\n");
+        success("pbx_init() created server socket.");
     }
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(port);
-    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    memset(&pbx->serv_addr, 0, sizeof(pbx->serv_addr));
+    pbx->serv_addr.sin_family = AF_INET;
+    pbx->serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    pbx->serv_addr.sin_port = htons(port);
+
+    if (bind(pbx->serverfd, (struct sockaddr *)&(pbx->serv_addr), sizeof(pbx->serv_addr)) < 0)
     {
-        perror("bind");
-        terminate(1);
+        error("pbx_init() failed to bind server socket.");
+        terminate(EXIT_FAILURE);
     }
     else
     {
-        fprintf(stderr, "bind() successful\n");
+        success("pbx_init() bound server socket.");
     }
 
     // Listen for connections on the server socket and accept them as needed in a loop
     while (1)
     {
-        if (listen(server_fd, 5) < 0)
+        if (listen(pbx->serverfd, 5) < 0)
         {
-            perror("listen");
-            terminate(1);
+            error("listen() failed.");
+            terminate(EXIT_FAILURE);
         }
         else
         {
-            fprintf(stderr, "listen() successful\n");
+            success("listen() successful.");
+            int client_fd;
+            socklen_t client_len;
+            struct sockaddr_in client_addr;
             client_len = sizeof(client_addr);
-            client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
+            client_fd = accept(pbx->serverfd, (struct sockaddr *)&client_addr, &client_len);
             if (client_fd < 0)
             {
-                perror("accept");
-                terminate(1);
+                perror("accept() failed.");
+                terminate(EXIT_FAILURE);
             }
             else
             {
-                fprintf(stderr, "accept() successful\n");
+                success("accept() successful.");
                 // Create a new thread to handle the connection
+                int *client_fd_ptr = malloc(sizeof(int));
+                assert(client_fd_ptr != NULL);
+                *client_fd_ptr = client_fd;
                 pthread_t thread;
                 pthread_attr_t attr;
                 int err;
@@ -119,23 +139,12 @@ int main(int argc, char *argv[])
                 assert(err == 0);
                 err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
                 assert(err == 0);
-                err = pthread_create(&thread, &attr, pbx_client_service, (void *)&client_fd);
+                err = pthread_create(&thread, &attr, pbx_client_service, (void *)client_fd_ptr);
                 assert(err == 0);
             }
         }
     }
 
-    // while (1)
-    // {
-    //     int client_fd = server_accept(port);
-    //     if (client_fd < 0)
-    //     {
-    //         fprintf(stderr, "Error accepting client connection\n");
-    //         exit(1);
-    //     }
-    //     pthread_t thread;
-    //     pthread_create(&thread, NULL, pbx_client_service, (void *)client_fd);
-    // }
 
     fprintf(stderr, "You have to finish implementing main() "
                     "before the PBX server will function.\n");

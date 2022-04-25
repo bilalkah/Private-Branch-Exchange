@@ -5,16 +5,48 @@
 
 #include "pbx.h"
 #include "debug.h"
+#include "structures.h"
+
+#include <pthread.h>
+#include <string.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <assert.h>
+#include <stdbool.h>
+
+
+
+
+void f()
+{
+}
 
 /*
  * Initialize a new PBX.
  *
  * @return the newly initialized PBX, or NULL if initialization fails.
  */
-#if 0
-PBX *pbx_init() {
+#if 1
+PBX *pbx_init()
+{
     // TO BE IMPLEMENTED
-    abort();
+    debug("pbx_init()");
+
+    // create a new PBX
+    PBX *_pbx = malloc(sizeof(PBX));
+    if (_pbx == NULL)
+    {
+        debug("pbx_init() failed to allocate memory for new_pbx");
+        return NULL;
+    }
+
+    // initialize the pbx and server socket
+    _pbx->num_tus = 0;
+    _pbx->head = NULL;
+
+    return _pbx;
 }
 #endif
 
@@ -28,10 +60,14 @@ PBX *pbx_init() {
  *
  * @param pbx  The PBX to be shut down.
  */
-#if 0
-void pbx_shutdown(PBX *pbx) {
+#if 1
+void pbx_shutdown(PBX *pbx)
+{
     // TO BE IMPLEMENTED
-    abort();
+    // abort();
+    debug("pbx_shutdown()");
+    delete_all_nodes(pbx->head);
+    free(pbx);
 }
 #endif
 
@@ -49,10 +85,15 @@ void pbx_shutdown(PBX *pbx) {
  * @param ext  The extension number on which the TU is to be registered.
  * @return 0 if registration succeeds, otherwise -1.
  */
-#if 0
-int pbx_register(PBX *pbx, TU *tu, int ext) {
+#if 1
+int pbx_register(PBX *pbx, TU *tu, int ext)
+{
     // TO BE IMPLEMENTED
-    abort();
+    // abort();
+    tu_set_extension(tu, ext);
+    tu_ref(tu, "pbx_register");
+    pbx->head = insert_node(pbx->head, tu);
+    return 0;
 }
 #endif
 
@@ -68,10 +109,14 @@ int pbx_register(PBX *pbx, TU *tu, int ext) {
  * @param tu  The TU to be unregistered.
  * @return 0 if unregistration succeeds, otherwise -1.
  */
-#if 0
-int pbx_unregister(PBX *pbx, TU *tu) {
+#if 1
+int pbx_unregister(PBX *pbx, TU *tu)
+{
     // TO BE IMPLEMENTED
-    abort();
+    // abort();
+    pbx->head = delete_node(pbx->head, tu);
+    tu_unref(tu, "pbx_unregister");
+    return 0;
 }
 #endif
 
@@ -83,9 +128,26 @@ int pbx_unregister(PBX *pbx, TU *tu) {
  * @param ext  The extension number to be called.
  * @return 0 if dialing succeeds, otherwise -1.
  */
-#if 0
-int pbx_dial(PBX *pbx, TU *tu, int ext) {
+#if 1
+int pbx_dial(PBX *pbx, TU *tu, int ext)
+{
     // TO BE IMPLEMENTED
-    abort();
+    // abort();
+    TU *_tu = find_tu(pbx->head, ext);
+    if (_tu == NULL)
+    {
+        debug("pbx_dial() failed to find extension");
+        return -1;
+    }
+    if(_tu->state != TU_ON_HOOK)
+    {
+        debug("tu is not on hook");
+        return -1;
+    }
+    if (tu_dial(_tu, tu) == -1)
+    {
+        debug("tu_dial() failed");
+        return -1;
+    }
 }
 #endif
