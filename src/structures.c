@@ -87,3 +87,22 @@ void delete_all_nodes(tu_clients *head)
         free(temp2);
     }
 }
+
+tu_clients *reverse_list(tu_clients *head)
+{
+    if (head == NULL)
+    {
+        return NULL;
+    }
+    tu_clients *prev = NULL;
+    tu_clients *current = head;
+    tu_clients *next = NULL;
+    while (current != NULL)
+    {
+        next = current->next;
+        current->next = prev;
+        prev = current;
+        current = next;
+    }
+    return prev;
+}

@@ -18,11 +18,6 @@
 
 
 
-
-void f()
-{
-}
-
 /*
  * Initialize a new PBX.
  *

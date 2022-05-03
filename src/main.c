@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     // Option '-p <port>' is required in order to specify the port number
     // on which the server should listen.
     int port;
-    if (argc < 2)
+    if (argc <= 2)
     {
         error("Usage: pbx <port>.");
         exit(1);

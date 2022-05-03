@@ -44,6 +44,7 @@ struct tu
 tu_clients *create_node(TU *tu_client);
 tu_clients *insert_node(tu_clients *head, TU *tu_client);
 tu_clients *delete_node(tu_clients *head, TU *tu_client);
+tu_clients *reverse_list(tu_clients *head);
 TU *find_tu(tu_clients *head, int extension);
 void delete_all_nodes(tu_clients *head);
 
