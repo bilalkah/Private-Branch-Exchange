@@ -50,7 +50,7 @@ void *pbx_client_service(void *arg)
         {
             debug("read() returned 0, client disconnected.");
             pbx->head = delete_node(pbx->head, tu);
-            break;
+            tu->is_connected = false;
         }
         else
         {
@@ -83,8 +83,8 @@ void *pbx_client_service(void *arg)
                     int extension = atoi(args);
                     debug("extension = %d", extension);
                     status=pbx_dial(pbx, tu, extension);
-                    sprintf(buf, "%s\n", tu_state_names[tu->state]);
-                    send(client_fd, buf, strlen(buf), 0);
+                    // sprintf(buf, "%s\n", tu_state_names[tu->state]);
+                    // send(client_fd, buf, strlen(buf), 0);
                 }
                 else if (strncmp(cmd, tu_command_names[TU_CHAT_CMD], strlen(tu_command_names[TU_CHAT_CMD])) == 0)
                 {
@@ -101,21 +101,13 @@ void *pbx_client_service(void *arg)
                 {
                     success("TU_PICKUP_CMD");
                     status = tu_pickup(tu);
-                    if (status == 0)
-                    {
-                        sprintf(buf, "%s\n", tu_state_names[tu->state]);
-                        send(client_fd, buf, strlen(buf), 0);
-                    }
+                    debug("tu_pickup() returned %d", status);
                 }
                 else if (strncmp(buf, tu_command_names[TU_HANGUP_CMD], strlen(tu_command_names[TU_HANGUP_CMD])) == 0)
                 {
                     success("TU_HANGUP_CMD");
                     status = tu_hangup(tu);
-                    if (status == 0)
-                    {
-                        sprintf(buf, "%s\n", tu_state_names[tu->state]);
-                        send(client_fd, buf, strlen(buf), 0);
-                    }
+                    debug("tu_hangup() returned %d", status);
                 }
                 else
                 {
@@ -126,7 +118,7 @@ void *pbx_client_service(void *arg)
         }
     }
     pbx_unregister(pbx, tu);
-
+    tu_unref(tu,"quit");
     return NULL;
 }
 #endif

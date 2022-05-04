@@ -176,27 +176,36 @@ int tu_dial(TU *tu, TU *target)
 {
     pthread_mutex_lock(&target->signaling_lock);
     debug("%s",tu_state_names[tu->state]);
+    char buf[256];
     if (tu->state != TU_DIAL_TONE)
     {
         debug("tu_dial() called on TU in state %s", tu_state_names[tu->state]);
+        sprintf(buf, "%s%s",tu_state_names[tu->state],EOL);
+        send(tu->file_descriptor, buf, strlen(buf), 0);
+        pthread_mutex_unlock(&target->signaling_lock);
         return -1;
     }
     if (target == NULL)
     {
         debug("tu_dial() called with NULL target");
         tu->state = TU_ERROR;
+        sprintf(buf, "%s%s",tu_state_names[tu->state],EOL);
+        send(tu->file_descriptor, buf, strlen(buf), 0);
+        pthread_mutex_unlock(&target->signaling_lock);
         return -1;
     }
     if (target->state != TU_ON_HOOK || target->peer != NULL)
     {
         debug("tu_dial() called with target TU in state %d", target->state);
         tu->state = TU_BUSY_SIGNAL;
+        sprintf(buf, "%s%s",tu_state_names[tu->state],EOL);
+        send(tu->file_descriptor, buf, strlen(buf), 0);
+        pthread_mutex_unlock(&target->signaling_lock);
         return -1;
     }
 
     tu->state = TU_RING_BACK;
     target->state = TU_RINGING;
-    char buf[256];
     sprintf(buf, "%s\n", tu_state_names[target->state]);
     send(target->client_fd, buf, strlen(buf), 0);
     sprintf(buf, "%s\n", tu_state_names[tu->state]);
@@ -246,6 +255,7 @@ int tu_pickup(TU *tu)
     {
         return -1;
     }
+    char buf[256];
     switch (tu->state)
     {
     case TU_ON_HOOK:
@@ -259,6 +269,8 @@ int tu_pickup(TU *tu)
     default:
         break;
     }
+    sprintf(buf, "%s%s", tu_state_names[tu->state],EOL);
+    send(tu->client_fd, buf, strlen(buf), 0);
     return 0;
 }
 #endif
@@ -291,12 +303,19 @@ int tu_hangup(TU *tu)
     {
         return -1;
     }
-
+    char buf[256];
     switch (tu->state)
     {
     case TU_CONNECTED:
         tu->state = TU_ON_HOOK;
-
+        tu->peer->state = TU_DIAL_TONE;
+        sprintf(buf, "%s\n", tu_state_names[tu->peer->state]);
+        int tu_fd = tu->peer->client_fd;
+        tu_unref(tu->peer, "tu_hangup");
+        tu->peer = NULL;
+        tu_unref(tu, "tu_hangup");
+        tu->peer = NULL;
+        send(tu_fd, buf, strlen(buf), 0);
         break;
     case TU_RINGING:
         tu->state = TU_ON_HOOK;
@@ -312,6 +331,8 @@ int tu_hangup(TU *tu)
     default:
         break;
     }
+    sprintf(buf, "%s\n", tu_state_names[tu->state]);
+    send(tu->client_fd, buf, strlen(buf), 0);
     return 0;
 }
 #endif
@@ -347,6 +368,8 @@ int tu_chat(TU *tu, char *msg)
         debug("tu_chat() called with tu->peer->state = %s", tu_state_names[tu->peer->state]);
         return -1;
     }
+    // add EOL to message
+    strcat(msg, EOL);
     if (send(tu->peer->file_descriptor, msg, strlen(msg), 0) < 0)
     {
         debug("tu_chat: send() failed");

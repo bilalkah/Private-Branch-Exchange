@@ -48,6 +48,8 @@ struct tu
     TU *peer;
 };
 
+
+
 tu_clients *create_node(TU *tu_client);
 tu_clients *insert_node(tu_clients *head, TU *tu_client);
 tu_clients *delete_node(tu_clients *head, TU *tu_client);
