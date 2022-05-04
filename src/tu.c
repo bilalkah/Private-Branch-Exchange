@@ -28,6 +28,8 @@ TU *tu_init(int fd)
     _tu->peer = NULL;
     _tu->state = TU_ON_HOOK;
     _tu->ref_count = 0;
+    // _tu->signaling_lock = (pthread_mutex_t)PTHREAD_COND_INITIALIZER;
+    // _tu->cond = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
     tu_ref(_tu, "tu_init");
     return _tu;
     // TO BE IMPLEMENTED
@@ -45,9 +47,14 @@ TU *tu_init(int fd)
 #if 1
 void tu_ref(TU *tu, char *reason)
 {
-    // TO BE IMPLEMENTED
+    if (tu == NULL)
+    {
+        debug("tu_ref() called with NULL tu");
+        return;
+    }
     debug("tu_ref(%s)", reason);
     tu->ref_count++;
+    debug("ref of tu is now %d", tu->ref_count);
 }
 #endif
 
@@ -61,9 +68,15 @@ void tu_ref(TU *tu, char *reason)
 #if 1
 void tu_unref(TU *tu, char *reason)
 {
-    // TO BE IMPLEMENTED
+    if (tu == NULL)
+    {
+        debug("tu_unref(%s) called with NULL tu", reason);
+        return;
+    }
+    
     debug("tu_unref(%s)", reason);
     tu->ref_count--;
+    debug("ref of tu is now %d", tu->ref_count);
     if (tu->ref_count == 0)
     {
         free(tu);
@@ -83,6 +96,11 @@ void tu_unref(TU *tu, char *reason)
 #if 1
 int tu_fileno(TU *tu)
 {
+    if (tu == NULL)
+    {
+        debug("tu_fileno() called with NULL tu");
+        return -1;
+    }
     return tu->file_descriptor;
 }
 #endif
@@ -156,24 +174,50 @@ int tu_set_extension(TU *tu, int ext)
 #if 1
 int tu_dial(TU *tu, TU *target)
 {
+    pthread_mutex_lock(&target->signaling_lock);
+    debug("%s",tu_state_names[tu->state]);
     if (tu->state != TU_DIAL_TONE)
     {
+        debug("tu_dial() called on TU in state %s", tu_state_names[tu->state]);
         return -1;
     }
     if (target == NULL)
     {
+        debug("tu_dial() called with NULL target");
         tu->state = TU_ERROR;
         return -1;
     }
     if (target->state != TU_ON_HOOK || target->peer != NULL)
     {
+        debug("tu_dial() called with target TU in state %d", target->state);
         tu->state = TU_BUSY_SIGNAL;
         return -1;
     }
+
+    tu->state = TU_RING_BACK;
+    target->state = TU_RINGING;
+    char buf[256];
+    sprintf(buf, "%s\n", tu_state_names[target->state]);
+    send(target->client_fd, buf, strlen(buf), 0);
+    sprintf(buf, "%s\n", tu_state_names[tu->state]);
+    send(tu->client_fd, buf, strlen(buf), 0);
+    
+    debug("tu_dial() called, tu->state = %s, target->state = %s",
+          tu_state_names[tu->state], tu_state_names[target->state]);
+
+    pthread_cond_wait(&target->cond, &target->signaling_lock);
+    
     tu->peer = target;
     target->peer = tu;
-    target->state = TU_RINGING;
-    tu->state = TU_RING_BACK;
+    tu_ref(target, "tu_dial");
+    tu_ref(tu, "tu_dial");
+    tu->state = TU_CONNECTED;
+    sprintf(buf, "%s\n", tu_state_names[tu->state]);
+    send(tu->client_fd, buf, strlen(buf), 0);
+    success("tu_dial() called, tu->state = %s, target->state = %s",
+          tu_state_names[tu->state], tu_state_names[target->state]);
+
+    pthread_mutex_unlock(&target->signaling_lock);
     return 0;
 }
 #endif
@@ -198,7 +242,7 @@ int tu_dial(TU *tu, TU *target)
 #if 1
 int tu_pickup(TU *tu)
 {
-    if (!tu)
+    if (!tu || tu->state == TU_CONNECTED)
     {
         return -1;
     }
@@ -206,13 +250,11 @@ int tu_pickup(TU *tu)
     {
     case TU_ON_HOOK:
         tu->state = TU_DIAL_TONE;
+        debug("tu_pickup: TU %d is now in state %s", tu->extension, tu_state_names[tu->state]);
         break;
     case TU_RINGING:
         tu->state = TU_CONNECTED;
-        if (tu->peer)
-        {
-            tu->peer->state = TU_CONNECTED;
-        }
+        pthread_cond_signal(&tu->cond);
         break;
     default:
         break;
@@ -254,7 +296,7 @@ int tu_hangup(TU *tu)
     {
     case TU_CONNECTED:
         tu->state = TU_ON_HOOK;
-        
+
         break;
     case TU_RINGING:
         tu->state = TU_ON_HOOK;
@@ -292,20 +334,26 @@ int tu_chat(TU *tu, char *msg)
 {
     if (!tu || !msg)
     {
+        debug("tu_chat() called with NULL tu or msg");
         return -1;
     }
     if (tu->state != TU_CONNECTED)
     {
+        debug("tu_chat() called with tu->state = %s", tu_state_names[tu->state]);
         return -1;
     }
     if (tu->peer->state != TU_CONNECTED)
     {
+        debug("tu_chat() called with tu->peer->state = %s", tu_state_names[tu->peer->state]);
         return -1;
     }
     if (send(tu->peer->file_descriptor, msg, strlen(msg), 0) < 0)
     {
+        debug("tu_chat: send() failed");
         return -1;
     }
+    debug("tu_chat: sent message %s", msg);
+
     return 0;
 }
 #endif

@@ -83,7 +83,7 @@ void delete_all_nodes(tu_clients *head)
         tu_clients *temp2 = temp;
         temp = temp->next;
         temp2->tu_client->is_connected = false;
-        tu_unref(temp2->tu_client, NULL);
+        tu_unref(temp2->tu_client, "delete_all_nodes");
         free(temp2);
     }
 }

@@ -13,6 +13,10 @@
 #include <netinet/in.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <semaphore.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 
 typedef struct tu_clients
@@ -32,6 +36,9 @@ struct pbx
 
 struct tu
 {
+    pthread_mutex_t lock;
+    pthread_mutex_t signaling_lock;
+    pthread_cond_t cond;
     int client_fd;
     int file_descriptor;
     int state;

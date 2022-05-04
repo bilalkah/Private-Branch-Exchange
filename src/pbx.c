@@ -86,6 +86,7 @@ int pbx_register(PBX *pbx, TU *tu, int ext)
     // TO BE IMPLEMENTED
     // abort();
     tu_set_extension(tu, ext);
+    tu->is_connected = true;
     tu_ref(tu, "pbx_register");
     pbx->head = insert_node(pbx->head, tu);
     return 0;
@@ -134,15 +135,14 @@ int pbx_dial(PBX *pbx, TU *tu, int ext)
         debug("pbx_dial() failed to find extension");
         return -1;
     }
-    if(_tu->state != TU_ON_HOOK)
-    {
-        debug("tu is not on hook");
-        return -1;
-    }
-    if (tu_dial(_tu, tu) == -1)
+    tu_ref(_tu, "pbx_dial");
+    if (tu_dial(tu, _tu) == -1)
     {
         debug("tu_dial() failed");
+        tu_unref(_tu, "pbx_dial");
         return -1;
     }
+    tu_unref(_tu, "pbx_dial");
+    return 0;
 }
 #endif
